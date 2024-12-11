@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
+import API_URL from "./url";
 
 export default function useApi({
   method = "GET",
@@ -20,7 +21,7 @@ export default function useApi({
         method,
         params,
         ...config,
-        url: "http://localhost:3000" + (config?.url || url),
+        url: API_URL + (config?.url || url),
         headers: {
           Authorization: "Bearer " + localStorage.getItem("token"),
         },
