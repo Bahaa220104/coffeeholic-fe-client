@@ -1,2 +1,5 @@
-const API_URL = "https://coffeeholicapi.onrender.com"; //"http://localhost:3000";
+const API_URL = false
+  ? "https://coffeeholicapi.onrender.com"
+  : "http://localhost:3000";
+
 export default API_URL;

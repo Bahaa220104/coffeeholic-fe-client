@@ -15,22 +15,28 @@ import {
   FormLabel,
   Grid2,
   IconButton,
+  InputLabel,
   Radio,
   RadioGroup,
+  Select,
   Snackbar,
   Tab,
   Tabs,
   Typography,
+  MenuItem as MuiMenuItem,
 } from "@mui/material";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_WIDTH } from "../consts";
 import useApi from "../utils/useApi.hook";
-import useWidthObserver from "../utils/useWidthObserver.hook";
 import { useCart } from "../contexts/cart.context";
 
 export default function Menu() {
   const api = useApi({ url: "/categories", method: "get", callOnMount: true });
   console.log("API: ", api.data);
+  const [dietaryPreferences, setDietaryPreferences] = useState({
+    id: 0,
+    name: "All",
+  });
 
   const items = (
     api.data?.map((category) => {
@@ -131,9 +137,11 @@ export default function Menu() {
               margin: "0 auto",
             }}
           >
-            {items.map((item) => (
-              <Tab label={item.name} key={"Tab cat: " + item.id} />
-            ))}
+            {items
+              .filter((v) => v.type === "General")
+              .map((item) => (
+                <Tab label={item.name} key={"Tab cat: " + item.id} />
+              ))}
           </Tabs>
         </Box>
       </Box>
@@ -145,17 +153,57 @@ export default function Menu() {
           mx: "auto",
         }}
       >
-        <Typography
-          variant="h2"
-          sx={{ fontSize: { xs: "2.5rem", sm: "3rem" } }}
-          fontWeight={700}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "space-between",
+          }}
           mb={3}
           py={2}
           pt={4}
           px={2}
         >
-          Our Menu
-        </Typography>
+          <Typography
+            variant="h2"
+            sx={{ fontSize: { xs: "2.5rem", sm: "3rem" } }}
+            fontWeight={700}
+          >
+            Our Menu
+          </Typography>
+          <FormControl size="small">
+            <InputLabel>Dietary Preferences</InputLabel>
+            <Select
+              value={dietaryPreferences.id}
+              onChange={(e) => {
+                setDietaryPreferences(
+                  [{ id: 0, name: "All" }, ...items].find(
+                    (v) => v.id == e.target.value
+                  )
+                );
+              }}
+              label="Dietary Preferences"
+              sx={{ minWidth: "200px" }}
+              size="small"
+            >
+              <MuiMenuItem value={0}>All</MuiMenuItem>
+              {console.log("Items: ", items) ||
+                items
+                  ?.filter((v) => v.type === "Dietary Preferences")
+                  ?.map((item) => {
+                    console.log("Item: ", item);
+                    return (
+                      <MuiMenuItem
+                        key={"Dietary pref: " + item?.id}
+                        value={item?.id || 0}
+                      >
+                        {item?.name}
+                      </MuiMenuItem>
+                    );
+                  })}
+            </Select>
+          </FormControl>
+        </Box>
         <Grid2
           container
           sx={{
@@ -164,21 +212,38 @@ export default function Menu() {
             margin: "0 auto",
           }}
         >
-          {items.map((item, index) => (
-            <Box
-              key={"Category: " + item.id}
-              ref={(node) => setCategoryRef(node, index)}
-              sx={{ width: "100%" }}
-            >
-              <CategoryItem item={item} />
-            </Box>
-          ))}
+          {dietaryPreferences.id !== 0 && (
+            <Typography px={2} variant="h4">
+              Showing "{dietaryPreferences.name}" Products
+            </Typography>
+          )}
+          {items
+            .filter((v) => v.type === "General")
+            .map((item, index) => (
+              <Box
+                key={"Category: " + item.id}
+                ref={(node) => setCategoryRef(node, index)}
+                sx={{ width: "100%" }}
+              >
+                <CategoryItem
+                  item={item}
+                  dietaryPreferences={dietaryPreferences}
+                />
+              </Box>
+            ))}
         </Grid2>
       </Box>
     </>
   );
 }
-function CategoryItem({ item }) {
+function CategoryItem({ item, dietaryPreferences }) {
+  if (
+    !item.products.filter((v) => {
+      if (!dietaryPreferences?.id) return true;
+      return v.categories.find((c) => c.id == dietaryPreferences.id);
+    }).length
+  )
+    return;
   return (
     <>
       <Grid2 size={12} sx={{ p: 2 }}>
@@ -187,9 +252,14 @@ function CategoryItem({ item }) {
         </Typography>
       </Grid2>
       <Grid2 item size={12} container spacing={4} sx={{ p: 2 }}>
-        {item.products.map((p) => (
-          <MenuItem item={p} key={"Product: " + p.id} />
-        ))}
+        {item.products
+          .filter((v) => {
+            if (!dietaryPreferences?.id) return true;
+            return v.categories.find((c) => c.id == dietaryPreferences.id);
+          })
+          .map((p) => (
+            <MenuItem item={p} key={"Product: " + p.id} />
+          ))}
       </Grid2>
     </>
   );

@@ -4,11 +4,18 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
   Typography,
 } from "@mui/material";
-import React from "react";
+import React, { useState } from "react";
 import { MAX_WIDTH } from "../consts";
 import useApi from "../utils/useApi.hook";
+import { useAuth } from "../contexts/auth.context";
 
 const FaqItem = ({ question, answer, id }) => {
   return (
@@ -31,54 +38,11 @@ const FaqItem = ({ question, answer, id }) => {
   );
 };
 
-/*[
-    {
-      id: 1,
-      question: "Who are we?",
-      answer:
-        "Coffee Holic is a passionate coffee shop dedicated to serving the finest blends and creating a cozy environment for our community. Whether you're grabbing a quick espresso or settling in with a latte, our mission is to provide an exceptional coffee experience for all.",
-    },
-    {
-      id: 2,
-      question: "What types of coffee do you offer?",
-      answer:
-        "We offer a wide variety of coffees, including single-origin brews, espresso-based drinks, cold brews, and seasonal specialties. From rich and bold dark roasts to smooth and fruity light roasts, there's something for every coffee lover at Coffee Holic.",
-    },
-    {
-      id: 3,
-      question: "How can I place an order?",
-      answer:
-        "You can place an order directly at our café, through our website, or via our mobile app. For online orders, simply select your desired items, choose pickup or delivery, and proceed to checkout. We also offer catering services for events and special occasions.",
-    },
-    {
-      id: 4,
-      question: "Do I need to make a reservation?",
-      answer:
-        "While walk-ins are always welcome, we recommend making a reservation for larger groups or during peak hours to ensure we can accommodate your party comfortably. You can reserve a table through our website or by calling us directly.",
-    },
-    {
-      id: 5,
-      question: "Do you offer free Wi-Fi?",
-      answer:
-        "Absolutely! We provide complimentary high-speed Wi-Fi to all our customers. Whether you're working, studying, or just browsing the web, you can stay connected while enjoying your favorite coffee.",
-    },
-    {
-      id: 6,
-      question: "Do you host events?",
-      answer:
-        "Yes, we regularly host a variety of events, including live music nights, coffee tasting sessions, art exhibitions, and community gatherings. Keep an eye on our events calendar or subscribe to our newsletter to stay updated on upcoming happenings at Coffee Holic.",
-    },
-    {
-      id: 7,
-      question: "How can I contact you?",
-      answer:
-        "You can reach us via phone at (123) 456-7890, email at support@coffeeholic.com, or through our social media channels. We’re here to answer any questions and assist you with your needs.",
-    },
-  ] */
 export default function AboutUs() {
   const api = useApi({ method: "get", url: "/faqs", callOnMount: true });
-
-  const faqs = api.data || [];
+  const [openNewQuestionDialog, setOpenNewQuestionDialog] = useState(false);
+  const faqs = (api.data || []).filter((f) => f.approvedAt);
+  const auth = useAuth();
 
   return (
     <Box
@@ -90,14 +54,35 @@ export default function AboutUs() {
         py: 4,
       }}
     >
-      <Typography
-        variant="h2"
-        sx={{ fontSize: { xs: "2.5rem", sm: "3rem" } }}
-        fontWeight={700}
-        mb={3}
+      <QuestionDialog
+        open={openNewQuestionDialog}
+        setOpen={setOpenNewQuestionDialog}
+      />
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
-        Frequently Asked Questions
-      </Typography>
+        <Typography
+          variant="h2"
+          sx={{ fontSize: { xs: "2.5rem", sm: "3rem" } }}
+          fontWeight={700}
+          mb={3}
+        >
+          Frequently Asked Questions
+        </Typography>
+        {auth.user && (
+          <Button
+            variant="contained"
+            onClick={() => setOpenNewQuestionDialog(true)}
+          >
+            Submit Question
+          </Button>
+        )}
+      </Box>
 
       {faqs.map((faq) => (
         <FaqItem
@@ -108,5 +93,54 @@ export default function AboutUs() {
         />
       ))}
     </Box>
+  );
+}
+
+function QuestionDialog({ open, setOpen }) {
+  const api = useApi({ url: "/faqs", method: "post" });
+  const [data, setData] = useState({ question: "" });
+  const auth = useAuth();
+  return (
+    <Dialog
+      open={open}
+      onClose={() => setOpen(false)}
+      fullWidth
+      maxWidth="md"
+      component={"form"}
+      onSubmit={async (e) => {
+        e.preventDefault();
+
+        const response = await api.call({
+          data: { ...data, userId: auth.user.id },
+        });
+
+        if (response.ok) {
+          setOpen(false);
+        }
+      }}
+    >
+      <DialogTitle>New Question</DialogTitle>
+      <DialogContent>
+        <Typography mb={2}>
+          The response for your questions will be answered on your email.
+        </Typography>
+        <TextField
+          label="Question"
+          multiline
+          rows={2}
+          fullWidth
+          value={data.question}
+          onChange={(e) => {
+            setData({ ...data, question: e.target.value });
+          }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setOpen(false)}>Cancel</Button>
+        <Button variant="contained" type="submit">
+          Submit
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

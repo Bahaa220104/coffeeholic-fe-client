@@ -12,6 +12,7 @@ import MyOrder from "./views/order.view";
 import MyOrders from "./views/orders.view";
 import { AuthProvider } from "./contexts/auth.context";
 import { CartProvider } from "./contexts/cart.context";
+import ResetPassword from "./views/reserpassword.view";
 
 const theme = createTheme({
   typography: {
@@ -57,6 +58,7 @@ export default function App() {
               element={<MyOrders />}
             ></Route>
           </Route>
+          <Route path="auth/resetpassword/:token" element={<ResetPassword />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

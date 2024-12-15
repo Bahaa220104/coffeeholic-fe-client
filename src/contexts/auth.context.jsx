@@ -8,10 +8,18 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const [open, setOpen] = useState({ singIn: false, signUp: false });
+  const [open, setOpen] = useState({
+    signIn: false,
+    signUp: false,
+    forgotPassword: false,
+  });
 
   const loginApi = useApi({ url: "/auth/login", method: "post" });
   const registerApi = useApi({ url: "/auth/register", method: "post" });
+  const forgotPasswordApi = useApi({
+    url: "/auth/forgotpassword",
+    method: "post",
+  });
   const userApi = useApi({ url: "/users/me", method: "get" });
 
   const fetchUser = async () => {
@@ -35,11 +43,17 @@ export const AuthProvider = ({ children }) => {
     setOpen((open) => ({ ...open, signUp: false }));
   };
 
+  const openForgotPassword = () => {
+    setOpen((open) => ({ ...open, forgotPassword: true }));
+  };
+  const closeForgotPassword = () => {
+    setOpen((open) => ({ ...open, forgotPassword: false }));
+  };
+
   const signIn = async (data) => {
     const response = await loginApi.call({ data });
 
     if (response.ok) {
-      console.log("RESPONSE: ", response);
       localStorage.setItem("token", response.data.token);
       await fetchUser();
       closeSignIn();
@@ -55,6 +69,16 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("token", response.data.token);
       await fetchUser();
       closeSignUp();
+    }
+
+    return response;
+  };
+
+  const forgotPassword = async (data) => {
+    const response = await forgotPasswordApi.call({ data });
+
+    if (response.ok) {
+      closeForgotPassword();
     }
 
     return response;
@@ -78,8 +102,11 @@ export const AuthProvider = ({ children }) => {
         closeSignIn,
         openSignUp,
         closeSignUp,
+        openForgotPassword,
+        closeForgotPassword,
         signIn,
         signOut,
+        forgotPassword,
         signUp,
       }}
     >

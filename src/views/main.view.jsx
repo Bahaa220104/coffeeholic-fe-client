@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -30,9 +29,11 @@ import {
   useNavigate,
 } from "react-router";
 import { MAX_WIDTH } from "../consts";
-import useCurrentBreakpoint from "../utils/useCurrentBreakpoint.hook";
 import { useAuth } from "../contexts/auth.context";
 import { useCart } from "../contexts/cart.context";
+import ADMIN_URL from "../utils/admin-url";
+import useApi from "../utils/useApi.hook";
+import useCurrentBreakpoint from "../utils/useCurrentBreakpoint.hook";
 
 export default function Main() {
   const [open, setOpen] = useState(false);
@@ -41,6 +42,11 @@ export default function Main() {
   const navigate = useNavigate();
   const auth = useAuth();
   const cart = useCart();
+  const api = useApi({
+    method: "get",
+    url: "/business/1",
+    callOnMount: true,
+  });
 
   if (location.pathname === "/") return <Navigate to="/menu" />;
 
@@ -48,6 +54,7 @@ export default function Main() {
     <Box sx={{ position: "relative" }}>
       <SignInDialog />
       <SignUpDialog />
+      <ForgotPasswordDialog />
       <Box
         sx={{
           width: "100%",
@@ -102,7 +109,7 @@ export default function Main() {
               <>
                 <NavbarItem to="/menu">Menu</NavbarItem>
                 <NavbarItem to="/reservations">Reserve Table</NavbarItem>
-                <NavbarItem to="/about-us">About Us</NavbarItem>
+                <NavbarItem to="/about-us">FAQ</NavbarItem>
                 <Badge badgeContent={cart.cart.length} showZero>
                   <NavbarItem to="my-order">My Order</NavbarItem>
                 </Badge>
@@ -148,7 +155,7 @@ export default function Main() {
                 navigate("/about-us");
               }}
             >
-              <ListItemText primary={"About Us"} />
+              <ListItemText primary={"FAQ"} />
             </ListItemButton>
           </ListItem>
 
@@ -177,6 +184,19 @@ export default function Main() {
                   <ListItemText primary={"My Orders"} />
                 </ListItemButton>
               </ListItem>
+              {auth.user.isAdmin && (
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => {
+                      setOpen(false);
+                      window.location.href =
+                        ADMIN_URL + "?token=" + localStorage.getItem("token");
+                    }}
+                  >
+                    <ListItemText primary={"Admin Panel"} />
+                  </ListItemButton>
+                </ListItem>
+              )}
 
               <ListItem disablePadding>
                 <ListItemButton
@@ -204,8 +224,63 @@ export default function Main() {
         </List>
       </Drawer>
 
-      <Box sx={{ mt: 6 }}>
+      <Box sx={{ mt: 6, minHeight: "calc(100vh - 200px)", mb: 6 }}>
         <Outlet />
+      </Box>
+      <Box sx={{ backgroundColor: "primary.main", p: 2 }}>
+        <Box
+          sx={{
+            width: "calc(100% - 20px)",
+            maxWidth: MAX_WIDTH,
+            margin: "0 auto",
+          }}
+        >
+          <Typography color="white" variant="h6">
+            Contact us
+          </Typography>
+          <Typography color="white" variant="body1" sx={{ fontSize: "1.5rem" }}>
+            Call {api?.data?.phone}
+          </Typography>
+          <Typography color="white" variant="body1" sx={{ fontSize: "1.5rem" }}>
+            Email{" "}
+            <Link
+              to="mailto:hey@hey.com"
+              sx={{ color: "white", cursor: "pointer" }}
+            >
+              {api?.data?.email}
+            </Link>
+          </Typography>
+
+          <br />
+          <Typography color="white" variant="h6">
+            Opening Hours
+          </Typography>
+          <Typography color="white" variant="body1" sx={{ fontSize: "1.5rem" }}>
+            {api?.data?.openingHours}
+          </Typography>
+
+          <br />
+          <Typography color="white" variant="h6">
+            Visit us
+          </Typography>
+          <Typography color="white" variant="body1" sx={{ fontSize: "1.5rem" }}>
+            {api?.data?.address}
+          </Typography>
+
+          <iframe
+            title="google maps location of coffeeholic"
+            src={api?.data?.googleMapsUrl
+              ?.split('src="')?.[1]
+              ?.split("/n")?.[0]
+              ?.replace('"', "")}
+            width="100%"
+            height="450"
+            style={{ border: 0 }}
+            allowfullscreen=""
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          ></iframe>
+        </Box>
       </Box>
     </Box>
   );
@@ -259,6 +334,16 @@ function MyAccountMenu() {
         >
           My Orders
         </MenuItem>
+        {auth.user.isAdmin && (
+          <MenuItem
+            onClick={() => {
+              window.location.href =
+                ADMIN_URL + "?token=" + localStorage.getItem("token");
+            }}
+          >
+            Admin Panel
+          </MenuItem>
+        )}
         <MenuItem onClick={auth.signOut}>Log out</MenuItem>
       </Menu>
     </>
@@ -296,18 +381,11 @@ function SignInDialog() {
             <TextField
               required
               size="small"
-              label="Phone Number"
+              label="Email or Phone Number"
               fullWidth
               value={data.phone}
               onChange={(e) => {
                 setData({ ...data, phone: e.target.value });
-              }}
-              slotProps={{
-                htmlInput: {
-                  inputMode: "numeric",
-                  pattern: "[0-9]*",
-                  maxLength: 8,
-                },
               }}
             />
           </Grid2>
@@ -343,7 +421,14 @@ function SignInDialog() {
 
           <Grid2 item size={12} mb={-2}>
             <Typography textAlign={"center"}>
-              <Link>Forgot your Password ?</Link>
+              <Link
+                onClick={() => {
+                  auth.openForgotPassword();
+                  auth.closeSignIn();
+                }}
+              >
+                Forgot your Password ?
+              </Link>
             </Typography>
           </Grid2>
           <Grid2 item size={12}>
@@ -369,10 +454,12 @@ function SignUpDialog() {
   const auth = useAuth();
   const [data, setData] = useState({
     phone: "",
+    email: "",
     password: "",
     firstName: "",
     lastName: "",
   });
+  const [error, setError] = useState("");
 
   return (
     <Dialog
@@ -381,7 +468,10 @@ function SignUpDialog() {
       component="form"
       onSubmit={(e) => {
         e.preventDefault();
-        auth.signUp(data);
+        const response = auth.signUp(data);
+        if (response.error) {
+          setError(response.error);
+        }
       }}
       open={auth.open.signUp}
       onClose={auth.closeSignUp}
@@ -389,7 +479,7 @@ function SignUpDialog() {
       <DialogTitle>
         Sign Up{" "}
         <Typography variant="body1" color="textSecondary">
-          Enter name, phone number and password to sign up.
+          Enter name, email, phone number and password to sign up.
         </Typography>
       </DialogTitle>
       <DialogContent>
@@ -416,6 +506,21 @@ function SignUpDialog() {
               value={data.lastName}
               onChange={(e) => {
                 setData({ ...data, lastName: e.target.value });
+              }}
+              sx={{ minWidth: 0 }}
+            />
+          </Grid2>
+          <Grid2 item size={12} mb={-1}>
+            <TextField
+              required
+              size="small"
+              label="Email"
+              type="email"
+              helperText="Will be used later for password recovery"
+              fullWidth
+              value={data.email}
+              onChange={(e) => {
+                setData({ ...data, email: e.target.value });
               }}
               sx={{ minWidth: 0 }}
             />
@@ -455,7 +560,11 @@ function SignUpDialog() {
               sx={{ minWidth: 0 }}
             />
           </Grid2>
-
+          {error && (
+            <Grid2 item size={12}>
+              <Typography color="error">{error}</Typography>
+            </Grid2>
+          )}
           <Grid2
             item
             size={12}
@@ -477,6 +586,82 @@ function SignUpDialog() {
                 }}
               >
                 Sign in!
+              </Link>
+            </Typography>
+          </Grid2>
+        </Grid2>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ForgotPasswordDialog() {
+  const auth = useAuth();
+  const [data, setData] = useState({ email: "" });
+  const [error, setError] = useState("");
+
+  return (
+    <Dialog
+      maxWidth="xs"
+      fullWidth
+      component="form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const response = await auth.forgotPassword(data);
+        if (!response.ok) setError(response.error);
+        console.log("RESPONSE: ", response);
+      }}
+      open={auth.open.forgotPassword}
+      onClose={auth.closeForgotPassword}
+    >
+      <DialogTitle>
+        Forgot Password ?{" "}
+        <Typography variant="body1" color="textSecondary">
+          Enter your email. We will send you an email with the next steps.
+        </Typography>
+      </DialogTitle>
+      <DialogContent>
+        <Grid2 container spacing={3} mt={1}>
+          <Grid2 item size={12} mb={-1}>
+            <TextField
+              required
+              size="small"
+              type="email"
+              label="Email"
+              fullWidth
+              value={data.email}
+              onChange={(e) => {
+                setData({ ...data, email: e.target.value });
+              }}
+            />
+          </Grid2>
+
+          <Grid2
+            item
+            size={12}
+            sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+          >
+            <Button type="submit" variant="contained">
+              Send Instructions Email
+            </Button>
+            <Button onClick={auth.closeForgotPassword}>Cancel</Button>
+          </Grid2>
+
+          {error && (
+            <Typography color="error" textAlign={"center"} width="100%">
+              {error}
+            </Typography>
+          )}
+
+          <Grid2 item size={12} mb={0}>
+            <Typography textAlign={"center"}>
+              <Link
+                onClick={() => {
+                  auth.openSignIn();
+                  auth.closeForgotPassword();
+                }}
+              >
+                Remembered your Password ?
               </Link>
             </Typography>
           </Grid2>
